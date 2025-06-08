@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Free Roam Adventure</title>
+<style>
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: url('https://i.pinimg.com/originals/a0/45/7f/a0457f5afe9cf0afebd6310909efb4cc.gif') no-repeat center center fixed;
+    background-size: cover;
+    font-family: monospace;
+    color: #fff;
+    padding: 10px;
+  }
+  #game {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    grid-template-rows: repeat(5, 1fr);
+    gap: 0.4rem;
+    width: 90vw;
+    max-width: 360px;
+    aspect-ratio: 1 / 1;
+    margin-bottom: 20px;
+    background: rgba(0, 0, 0, 0.4);
+    padding: 0.8rem;
+    border-radius: 12px;
+    box-shadow: 0 0 15px #1de9b6;
+    user-select: none;
+  }
+  .cell {
+    border-radius: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 3.5vw;
+    user-select: none;
+    box-shadow: inset 0 0 4px rgba(0,0,0,0.3);
+    background: rgba(29, 43, 34, 0.5);
+    aspect-ratio: 1 / 1;
+  }
+  .player {
+    color: #00b0ff;
+    font-weight: bold;
+    text-shadow: 0 0 8px #0091ea;
+  }
+  .target {
+    color: #fbc02d;
+    font-weight: bold;
+    text-shadow: 0 0 6px #f9a825;
+  }
+  #controls {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 0.8rem;
+    width: 90vw;
+    max-width: 360px;
+    user-select: none;
+  }
+  button {
+    font-size: 6vw;
+    padding: 1rem 0;
+    border-radius: 12px;
+    border: 1.5px solid #004d40;
+    background: #00bfa5;
+    color: #00332b;
+    cursor: pointer;
+    transition: background 0.2s;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  button:active {
+    background: #007961;
+    color: #00e5ff;
+  }
+  button:disabled {
+    background: #004d40;
+    cursor: not-allowed;
+    color: #00332b;
+  }
+  #message {
+    margin-top: 20px;
+    font-size: 4vw;
+    max-width: 90vw;
+    color: #b2dfdb;
+    font-weight: bold;
+    text-align: center;
+    word-break: break-word;
+  }
+  .confetti-container {
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    pointer-events: none;
+    overflow: visible;
+  }
+  .confetti {
+    position: absolute;
+    font-size: 5vw;
+    animation: floatUp 3s forwards;
+    user-select: none;
+  }
+  @keyframes floatUp {
+    0% {
+      opacity: 1;
+      transform: translateY(0) rotate(0deg);
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(-150px) rotate(360deg);
+    }
+  }
+</style>
+</head>
+<body>
+
+<div id="game"></div>
+
+<div id="controls">
+  <div></div>
+  <button id="up" aria-label="Move Up">⬆️</button>
+  <div></div>
+  <button id="left" aria-label="Move Left">⬅️</button>
+  <div></div>
+  <button id="right" aria-label="Move Right">➡️</button>
+  <div></div>
+  <button id="down" aria-label="Move Down">⬇️</button>
+  <div></div>
+</div>
+
+<div id="message"></div>
+<div class="confetti-container" id="confetti-container"></div>
+
+<script>
+  const level = [
+    ['.', '.', '.', '.', '.'],
+    ['.', 'P', '.', 'T', '.'],
+    ['.', '.', '.', '.', '.'],
+    ['.', '.', '.', '.', '.'],
+    ['.', '.', '.', '.', '.'],
+  ];
+
+  const game = document.getElementById('game');
+  const rows = level.length;
+  const cols = level[0].length;
+
+  let playerPos = { x: 1, y: 1 };
+  let targetPos = { x: 3, y: 1 };
+  let gameWon = false;
+
+  function draw() {
+    game.innerHTML = '';
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const cell = document.createElement('div');
+        cell.classList.add('cell');
+
+        let tile = level[y][x];
+
+        if (tile === 'P') {
+          cell.classList.add('player');
+          cell.textContent = '💙';
+        } else if (tile === 'T') {
+          cell.classList.add('target');
+          cell.textContent = '🙂';
+        } else {
+          cell.textContent = '';
+        }
+        game.appendChild(cell);
+      }
+    }
+  }
+
+  function move(dx, dy) {
+    if (gameWon) return;
+
+    const nx = playerPos.x + dx;
+    const ny = playerPos.y + dy;
+
+    if (nx < 0 || nx >= cols || ny < 0 || ny >= rows) return;
+
+    // Move player
+    level[playerPos.y][playerPos.x] = '.';
+    playerPos.x = nx;
+    playerPos.y = ny;
+    level[ny][nx] = 'P';
+
+    draw();
+    checkWin();
+  }
+
+  function checkWin() {
+    if (playerPos.x === targetPos.x && playerPos.y === targetPos.y) {
+      gameWon = true;
+      showConfetti();
+      showMessage();
+      disableControls();
+    }
+  }
+
+  function disableControls() {
+    document.removeEventListener('keydown', keydownHandler);
+    document.querySelectorAll('#controls button').forEach(b => b.disabled = true);
+  }
+
+  function showMessage() {
+    const message = document.getElementById('message');
+    message.innerHTML = `
+      You have unlocked the link! 🎉<br>
+      <a href="https://docs.google.com/document/d/1UoEBAHozAk1islz9BiwbkTbyMPMCuojLrVaipSfOpSo/edit?usp=sharing" target="_blank" rel="noopener noreferrer" style="color:#00e5ff;">Click here to view</a>
+    `;
+  }
+
+  function showConfetti() {
+    const container = document.getElementById('confetti-container');
+
+    for (let i = 0; i < 30; i++) {
+      const confetti = document.createElement('div');
+      confetti.classList.add('confetti');
+      confetti.textContent = '💙';
+      confetti.style.left = Math.random() * window.innerWidth + 'px';
+      confetti.style.top = window.innerHeight + 20 + 'px';
+      confetti.style.animationDuration = (2 + Math.random() * 2) + 's';
+      container.appendChild(confetti);
+
+      confetti.addEventListener('animationend', () => {
+        confetti.remove();
+      });
+    }
+  }
+
+  function keydownHandler(e) {
+    switch(e.key) {
+      case 'ArrowUp': move(0, -1); break;
+      case 'ArrowDown': move(0, 1); break;
+      case 'ArrowLeft': move(-1, 0); break;
+      case 'ArrowRight': move(1, 0); break;
+    }
+  }
+
+  document.getElementById('up').onclick = () => move(0, -1);
+  document.getElementById('down').onclick = () => move(0, 1);
+  document.getElementById('left').onclick = () => move(-1, 0);
+  document.getElementById('right').onclick = () => move(1, 0);
+
+  document.addEventListener('keydown', keydownHandler);
+
+  draw();
+</script>
+
+</body>
+</html>
