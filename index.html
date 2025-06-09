@@ -2,31 +2,34 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-<title>Free Roam Adventure</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Maze Adventure - Moving Controls</title>
 <style>
+  html, body {
+    margin: 0; padding: 0;
+    height: 100%;
+    font-family: monospace;
+    background: url('https://i.pinimg.com/originals/a0/45/7f/a0457f5afe9cf0afebd6310909efb4cc.gif') no-repeat center center fixed;
+    background-size: cover;
+    color: #fff;
+  }
   body {
-    margin: 0;
-    min-height: 100vh;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    background: url('https://i.pinimg.com/originals/a0/45/7f/a0457f5afe9cf0afebd6310909efb4cc.gif') no-repeat center center fixed;
-    background-size: cover;
-    font-family: monospace;
-    color: #fff;
+    justify-content: flex-start;
+    min-height: 100vh;
     padding: 10px;
+    box-sizing: border-box;
   }
   #game {
+    position: relative;
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    grid-template-rows: repeat(5, 1fr);
+    grid-template-columns: repeat(13, 1fr);
     gap: 0.4rem;
     width: 90vw;
-    max-width: 360px;
+    max-width: 520px;
     aspect-ratio: 1 / 1;
-    margin-bottom: 20px;
     background: rgba(0, 0, 0, 0.4);
     padding: 0.8rem;
     border-radius: 12px;
@@ -41,49 +44,26 @@
     font-size: 3.5vw;
     user-select: none;
     box-shadow: inset 0 0 4px rgba(0,0,0,0.3);
-    background: rgba(29, 43, 34, 0.5);
     aspect-ratio: 1 / 1;
+    position: relative;
+  }
+  .wall {
+    background-color: #000;
+  }
+  .path {
+    background: rgba(29, 43, 34, 0.5);
   }
   .player {
     color: #00b0ff;
     font-weight: bold;
     text-shadow: 0 0 8px #0091ea;
+    position: relative;
+    z-index: 10;
   }
   .target {
     color: #fbc02d;
     font-weight: bold;
     text-shadow: 0 0 6px #f9a825;
-  }
-  #controls {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: repeat(3, 1fr);
-    gap: 0.8rem;
-    width: 90vw;
-    max-width: 360px;
-    user-select: none;
-  }
-  button {
-    font-size: 6vw;
-    padding: 1rem 0;
-    border-radius: 12px;
-    border: 1.5px solid #004d40;
-    background: #00bfa5;
-    color: #00332b;
-    cursor: pointer;
-    transition: background 0.2s;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-  button:active {
-    background: #007961;
-    color: #00e5ff;
-  }
-  button:disabled {
-    background: #004d40;
-    cursor: not-allowed;
-    color: #00332b;
   }
   #message {
     margin-top: 20px;
@@ -116,142 +96,264 @@
       transform: translateY(-150px) rotate(360deg);
     }
   }
+
+  /* Arrow buttons overlay */
+  #controls {
+    position: absolute;
+    pointer-events: none; /* allow clicks through empty space */
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    z-index: 20;
+  }
+  #controls button {
+    position: absolute;
+    pointer-events: auto; /* enable click on buttons */
+    font-size: 4vw;
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: 50%;
+    border: 1.5px solid #004d40;
+    background: #00bfa5cc;
+    color: #00332b;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: background 0.2s;
+  }
+  #controls button:disabled {
+    background: #004d40cc;
+    cursor: not-allowed;
+    color: #00332baa;
+  }
+  #controls button:active:not(:disabled) {
+    background: #007961cc;
+    color: #00e5ff;
+  }
 </style>
 </head>
 <body>
 
-<div id="game"></div>
-
-<div id="controls">
-  <div></div>
-  <button id="up" aria-label="Move Up">⬆️</button>
-  <div></div>
-  <button id="left" aria-label="Move Left">⬅️</button>
-  <div></div>
-  <button id="right" aria-label="Move Right">➡️</button>
-  <div></div>
-  <button id="down" aria-label="Move Down">⬇️</button>
-  <div></div>
-</div>
-
-<div id="message"></div>
+<div id="game" role="grid" aria-label="Maze game grid"></div>
+<div id="message" role="alert" aria-live="polite"></div>
 <div class="confetti-container" id="confetti-container"></div>
 
+<div id="controls">
+  <button id="up" aria-label="Move Up">⬆️</button>
+  <button id="left" aria-label="Move Left">⬅️</button>
+  <button id="down" aria-label="Move Down">⬇️</button>
+  <button id="right" aria-label="Move Right">➡️</button>
+</div>
+
 <script>
-  const level = [
-    ['.', '.', '.', '.', '.'],
-    ['.', 'P', '.', 'T', '.'],
-    ['.', '.', '.', '.', '.'],
-    ['.', '.', '.', '.', '.'],
-    ['.', '.', '.', '.', '.'],
-  ];
+const level = [
+  ['#','#','#','#','#','#','#','#','#','#','#','#','#'],
+  ['#','P','.','.','#','.','.','.','.','#','.','.','#'],
+  ['#','.','#','#','#','.','#','.','#','#','#','.','#'],
+  ['#','.','#','.','.','.','#','.','#','.','.','.','#'],
+  ['#','.','#','#','.','#','#','.','#','.','#','#','#'],
+  ['#','.','.','.','.','.','#','.','#','.','.','.','#'],
+  ['#','.','#','.','#','.','#','.','#','#','.','.','#'],
+  ['#','#','#','.','#','.','#','.','.','.','.','#','#'],
+  ['#','.','#','.','#','#','#','.','#','#','.','.','#'],
+  ['#','.','#','.','#','.','#','.','#','.','.','.','#'],
+  ['#','.','.','.','#','.','#','.','#','#','#','.','#'],
+  ['#','.','.','.','.','.','#','.','.','#','T','.','#'],
+  ['#','#','#','#','#','#','#','#','#','#','#','#','#']
+];
 
-  const game = document.getElementById('game');
-  const rows = level.length;
-  const cols = level[0].length;
+const game = document.getElementById('game');
+const controls = document.getElementById('controls');
+const rows = level.length;
+const cols = level[0].length;
 
-  let playerPos = { x: 1, y: 1 };
-  let targetPos = { x: 3, y: 1 };
-  let gameWon = false;
+let playerPos = { x: 1, y: 1 };
+let targetPos = { x: 10, y: 11 };
+let gameWon = false;
 
-  function draw() {
-    game.innerHTML = '';
-    for (let y = 0; y < rows; y++) {
-      for (let x = 0; x < cols; x++) {
-        const cell = document.createElement('div');
-        cell.classList.add('cell');
+function draw() {
+  game.innerHTML = '';
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const cell = document.createElement('div');
+      cell.classList.add('cell');
 
-        let tile = level[y][x];
+      const tile = level[y][x];
 
-        if (tile === 'P') {
-          cell.classList.add('player');
-          cell.textContent = '💙';
-        } else if (tile === 'T') {
-          cell.classList.add('target');
-          cell.textContent = '🙂';
-        } else {
-          cell.textContent = '';
-        }
-        game.appendChild(cell);
+      if (tile === '#') {
+        cell.classList.add('wall');
+      } else {
+        cell.classList.add('path');
       }
+
+      if (tile === 'P') {
+        cell.classList.add('player');
+        cell.textContent = '💙';
+      } else if (tile === 'T') {
+        cell.classList.add('target');
+        cell.textContent = '🥺';
+      }
+
+      game.appendChild(cell);
     }
   }
+  positionControls();
+}
 
-  function move(dx, dy) {
-    if (gameWon) return;
+function positionControls() {
+  if (gameWon) {
+    controls.style.display = 'none';
+    return;
+  }
+  controls.style.display = 'block';
 
+  // Find the player cell's DOM element
+  // The grid is filled row-major, so index = y * cols + x
+  const playerIndex = playerPos.y * cols + playerPos.x;
+  const playerCell = game.children[playerIndex];
+
+  if (!playerCell) return;
+
+  // Get position and size of the player cell
+  const rect = playerCell.getBoundingClientRect();
+  const gameRect = game.getBoundingClientRect();
+
+  // Calculate offsets relative to the game container
+  const offsetX = rect.left - gameRect.left;
+  const offsetY = rect.top - gameRect.top;
+  const size = rect.width; // cells are square
+
+  // Position each arrow relative to player cell
+  const spacing = 8; // pixels between cell edge and button
+
+  // Helper function to check if move is possible
+  function canMove(dx, dy) {
     const nx = playerPos.x + dx;
     const ny = playerPos.y + dy;
-
-    if (nx < 0 || nx >= cols || ny < 0 || ny >= rows) return;
-
-    // Move player
-    level[playerPos.y][playerPos.x] = '.';
-    playerPos.x = nx;
-    playerPos.y = ny;
-    level[ny][nx] = 'P';
-
-    draw();
-    checkWin();
+    return (
+      nx >= 0 &&
+      nx < cols &&
+      ny >= 0 &&
+      ny < rows &&
+      level[ny][nx] !== '#'
+    );
   }
 
-  function checkWin() {
-    if (playerPos.x === targetPos.x && playerPos.y === targetPos.y) {
-      gameWon = true;
-      showConfetti();
-      showMessage();
-      disableControls();
-    }
+  // UP button
+  const upBtn = document.getElementById('up');
+  if (canMove(0, -1)) {
+    upBtn.disabled = false;
+    upBtn.style.display = 'flex';
+    upBtn.style.left = offsetX + size / 2 - upBtn.offsetWidth / 2 + 'px';
+    upBtn.style.top = offsetY - upBtn.offsetHeight - spacing + 'px';
+  } else {
+    upBtn.disabled = true;
+    upBtn.style.display = 'none';
   }
 
-  function disableControls() {
-    document.removeEventListener('keydown', keydownHandler);
-    document.querySelectorAll('#controls button').forEach(b => b.disabled = true);
+  // DOWN button
+  const downBtn = document.getElementById('down');
+  if (canMove(0, 1)) {
+    downBtn.disabled = false;
+    downBtn.style.display = 'flex';
+    downBtn.style.left = offsetX + size / 2 - downBtn.offsetWidth / 2 + 'px';
+    downBtn.style.top = offsetY + size + spacing + 'px';
+  } else {
+    downBtn.disabled = true;
+    downBtn.style.display = 'none';
   }
 
-  function showMessage() {
-    const message = document.getElementById('message');
-    message.innerHTML = `
-      You have unlocked the link! 🎉<br>
-      <a href="https://docs.google.com/document/d/1UoEBAHozAk1islz9BiwbkTbyMPMCuojLrVaipSfOpSo/edit?usp=sharing" target="_blank" rel="noopener noreferrer" style="color:#00e5ff;">Click here to view</a>
-    `;
+  // LEFT button
+  const leftBtn = document.getElementById('left');
+  if (canMove(-1, 0)) {
+    leftBtn.disabled = false;
+    leftBtn.style.display = 'flex';
+    leftBtn.style.left = offsetX - leftBtn.offsetWidth - spacing + 'px';
+    leftBtn.style.top = offsetY + size / 2 - leftBtn.offsetHeight / 2 + 'px';
+  } else {
+    leftBtn.disabled = true;
+    leftBtn.style.display = 'none';
   }
 
-  function showConfetti() {
-    const container = document.getElementById('confetti-container');
-
-    for (let i = 0; i < 30; i++) {
-      const confetti = document.createElement('div');
-      confetti.classList.add('confetti');
-      confetti.textContent = '💙';
-      confetti.style.left = Math.random() * window.innerWidth + 'px';
-      confetti.style.top = window.innerHeight + 20 + 'px';
-      confetti.style.animationDuration = (2 + Math.random() * 2) + 's';
-      container.appendChild(confetti);
-
-      confetti.addEventListener('animationend', () => {
-        confetti.remove();
-      });
-    }
+  // RIGHT button
+  const rightBtn = document.getElementById('right');
+  if (canMove(1, 0)) {
+    rightBtn.disabled = false;
+    rightBtn.style.display = 'flex';
+    rightBtn.style.left = offsetX + size + spacing + 'px';
+    rightBtn.style.top = offsetY + size / 2 - rightBtn.offsetHeight / 2 + 'px';
+  } else {
+    rightBtn.disabled = true;
+    rightBtn.style.display = 'none';
   }
+}
 
-  function keydownHandler(e) {
-    switch(e.key) {
-      case 'ArrowUp': move(0, -1); break;
-      case 'ArrowDown': move(0, 1); break;
-      case 'ArrowLeft': move(-1, 0); break;
-      case 'ArrowRight': move(1, 0); break;
-    }
-  }
+function move(dx, dy) {
+  if (gameWon) return;
 
-  document.getElementById('up').onclick = () => move(0, -1);
-  document.getElementById('down').onclick = () => move(0, 1);
-  document.getElementById('left').onclick = () => move(-1, 0);
-  document.getElementById('right').onclick = () => move(1, 0);
+  const nx = playerPos.x + dx;
+  const ny = playerPos.y + dy;
 
-  document.addEventListener('keydown', keydownHandler);
+  if (nx < 0 || nx >= cols || ny < 0 || ny >= rows) return;
+  if (level[ny][nx] === '#') return;
+
+  level[playerPos.y][playerPos.x] = '.';
+  playerPos = { x: nx, y: ny };
+  level[ny][nx] = 'P';
 
   draw();
+  checkWin();
+}
+
+function checkWin() {
+  if (playerPos.x === targetPos.x && playerPos.y === targetPos.y) {
+    gameWon = true;
+    showConfetti();
+    showMessage();
+    controls.style.display = 'none';
+  }
+}
+
+function showMessage() {
+  document.getElementById('message').innerHTML = `
+    You escaped the maze! 🎉<br>
+    <a href="https://docs.google.com/document/d/1UoEBAHozAk1islz9BiwbkTbyMPMCuojLrVaipSfOpSo/edit?usp=sharing" target="_blank" rel="noopener noreferrer" style="color:#00e5ff;">Unlock the secret</a>
+  `;
+}
+
+function showConfetti() {
+  const container = document.getElementById('confetti-container');
+  for (let i = 0; i < 30; i++) {
+    const confetti = document.createElement('div');
+    confetti.classList.add('confetti');
+    confetti.textContent = '💙';
+    confetti.style.left = Math.random() * window.innerWidth + 'px';
+    confetti.style.top = window.innerHeight + 20 + 'px';
+    confetti.style.animationDuration = (2 + Math.random() * 2) + 's';
+    container.appendChild(confetti);
+    confetti.addEventListener('animationend', () => confetti.remove());
+  }
+}
+
+// Button clicks trigger moves
+document.getElementById('up').onclick = () => move(0, -1);
+document.getElementById('down').onclick = () => move(0, 1);
+document.getElementById('left').onclick = () => move(-1, 0);
+document.getElementById('right').onclick = () => move(1, 0);
+
+// Keyboard support
+document.addEventListener('keydown', e => {
+  switch(e.key) {
+    case 'ArrowUp': move(0, -1); break;
+    case 'ArrowDown': move(0, 1); break;
+    case 'ArrowLeft': move(-1, 0); break;
+    case 'ArrowRight': move(1, 0); break;
+  }
+});
+
+draw();
 </script>
 
 </body>
